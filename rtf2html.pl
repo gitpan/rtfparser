@@ -9,9 +9,9 @@
 require 5.000;
 use strict;
 
-my $VERSION = "0.7";
+my $VERSION = "0.8";
 
-BEGIN {  unshift @INC, "." }
+#BEGIN {  unshift @INC, "." }
 use Getopt::Long;
 use File::Basename;
 
@@ -52,10 +52,7 @@ if ($LOG_FILE ne '') {
 
 select(STDOUT);
 
-#use RTF::Control;
-#my $self = new RTF::Control;	# todo: my $self = new RTF::ToHtml
-
-use RTF::HTML::Output;
+require RTF::HTML::Output;
 my $filename;
 my $self = new RTF::HTML::Output;	
 

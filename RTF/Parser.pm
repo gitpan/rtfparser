@@ -1,45 +1,27 @@
 # Sonovision-Itep, Philippe Verdret 1998
-# RTF Reader
+# an event-based RTF parser
 
 require 5.004;
 use strict;
 
 package RTF::Parser;
+$RTF::Parser::VERSION = "0.8";
 use RTF::Config;
 use File::Basename;
 
-use vars qw($line);
-use Carp;
-if (PARSER_TRACE) {
-  $SIG{__DIE__} =  $SIG{'INT'} = sub { 
-    confess;			# print the stack trace
-  };
+use constant PARSER_TRACE => 0;
+sub backtrace { 
+  require Carp;
+  Carp::confess;			
 }
-
-# RTF Specification
-# The delimiter marks the end of the RTF control word, and can
-# be one of the following:
-# 1. a space. In this case, the space is part of the control word
-# 2. a digit or an hyphen, ...
-# 3. any character other than a letter or a digit
-# 
-my $CONTROL_WORD = '[a-z]{1,32}'; # '[a-z]+';
-my $CONTROL_ARG = '-?\d+';	# argument of control words, or: (?:-[0-9]+|[0-9]+)
-my $END_OF_CONTROL = '(?:[ ]|(?=[^a-z0-9]))'; 
-my $CONTROL_SYMBOLS = q![-_~:|{}*\'\\\\]!; # Symbols (Special characters)
-my $DESTINATION = '[*]';	# 
-my $DESTINATION_CONTENT = '(?:[^\\\\{}]+|\\\\.)+'; 
-my $HEXA = q![0-9abcdef][0-9abcdef]!;
-my $PLAINTEXT = '[^{}\\\\]+(?:\\\\\\\\[^{}\\\\]*)*'; 
-my $BITMAP_START = '\\\\{bm(?:[clr]|cwd) '; # Ex.: \{bmcwd 
-my $BITMAP_END = q!\\\\}!;
-my $BITMAP_FILE = '(?:[^\\\\{}]+|\\\\[^{}])+'; 
-
+$SIG{'INT'} = \&backtrace if PARSER_TRACE;
+$SIG{__DIE__} = \&backtrace if PARSER_TRACE;
+ 
 my $EOR = "\n";
 if ($OS eq 'UNIX') {
-  $EOR = q!\r?\n!;		# todo: autodeterrmination
+  $EOR = q!\r?\n!;		# todo: autodetermination
 } else {
-  $EOR = q!\n!;			# binmode() will do the job
+  $EOR = q!\n!;	
 }
 			
 # reference of the hash which contains the processed control words 
@@ -64,21 +46,24 @@ sub controlDefinition {
 
 # Generate in the control class???
 { package Action;		
+  use RTF::Config;
+
   use vars qw($AUTOLOAD);
-				# should be optional
-  my $default = sub { $RTF::Control::not_processed{$_[1]}++ };
+  my $default = $LOG_FILE ? 
+    sub { $RTF::Control::not_processed{$_[1]}++ } : 
+      sub {};
   sub AUTOLOAD {
     my $self = $_[0];
     $AUTOLOAD =~ s/^.*:://;	
     no strict 'refs';
     if (defined (my $sub = ${$DO_ON_CONTROL}{"$AUTOLOAD"})) {
-      # Generate on the fly a new method, and call it
+      # Generate on the fly a new method and call it
       #*{"$AUTOLOAD"} = $sub; &{"$AUTOLOAD"}(@_); 
-      # OOP: *{"$AUTOLOAD"} = $sub; $self->$AUTOLOAD(@_);
+      # in OOP style: *{"$AUTOLOAD"} = $sub; $self->$AUTOLOAD(@_);
       # &{*{"$AUTOLOAD"} = $sub}(@_); 
       goto &{*{"$AUTOLOAD"} = $sub}; 
     } else {
-      *{"$AUTOLOAD"} = $default;	
+      goto &{*{"$AUTOLOAD"} = $default};	
     }
   }
 }
@@ -119,6 +104,25 @@ sub filename { $_[1] ? $_[0]->{filename} = $_[1] : $_[0]->{filename} }
 sub buffer { $_[1] ? $_[0]->{buffer} = $_[1] : $_[0]->{buffer} } 
 sub eof { $_[1] ? $_[0]->{eof} = $_[1] : $_[0]->{eof} } 
 
+# RTF Specification
+# The delimiter marks the end of the RTF control word, and can
+# be one of the following:
+# 1. a space. In this case, the space is part of the control word
+# 2. a digit or an hyphen, ...
+# 3. any character other than a letter or a digit
+# 
+my $CONTROL_WORD = '[a-z]{1,32}'; # '[a-z]+';
+my $CONTROL_ARG = '-?\d+';	# argument of control words, or: (?:-\d+|\d+)
+my $END_OF_CONTROL = '(?:[ ]|(?=[^a-z0-9]))'; 
+my $CONTROL_SYMBOLS = q![-_~:|{}*\'\\\\]!; # Symbols (Special characters)
+my $DESTINATION = '[*]';	# 
+my $DESTINATION_CONTENT = '(?:[^\\\\{}]+|\\\\.)+'; 
+my $HEXA = q![0-9abcdef][0-9abcdef]!;
+my $PLAINTEXT = '[^{}\\\\]+(?:\\\\\\\\[^{}\\\\]*)*'; 
+my $BITMAP_START = '\\\\{bm(?:[clr]|cwd) '; # Ex.: \{bmcwd 
+my $BITMAP_END = q!\\\\}!;
+my $BITMAP_FILE = '(?:[^\\\\{}]+|\\\\[^{}])+'; 
+
 sub parseFile {
   my $self = shift;
 	
@@ -126,7 +130,7 @@ sub parseFile {
   unless (defined $file) {
     die "file not defined";
   }
-  no strict 'refs';		# so that a symbol ref as $file works
+  no strict 'refs';		
   local(*F);
   unless (ref($file) or $file =~ /^\*[\w:]+$/) {
     $self->{filename} = $file;
@@ -156,7 +160,6 @@ sub parseFile {
       # RTF Specification: "discard all text up to and including the closing brace"
       # Example:  {\*\controlWord ... }
       # '*' is an escaping mechanism
-
 
       if (defined ${$DO_ON_CONTROL}{$1}) { # if it's a registered control then don't skip
 	$buffer = "\{\\$1$2" . $buffer;
@@ -244,34 +247,35 @@ sub parseFile {
   $self;
 }
 
-sub skipbin {			# skip binary data, not tested
+# patch from Rolf Howarth
+sub skipbin {                   # skip binary data
   my $self = shift;
   my $length = shift;
-  my $buffer = ${$self->{'buffer'}};
-  $self->{'buffer'} = \$buffer;
+  my $bufref = $self->{'buffer'};
   while ($length > 0) {
-    if (($length -= length($buffer)) >= 0) {
-      $buffer = '';
-      $self->read(); #or die "unexpected end of file"; 
-      print STDERR "=>$buffer\n";
+    if (length($$bufref) <= $length) {
+      #print STDERR "=>Consumed buffer length ".length($$bufref)."+".$self->{'trimmed'}."\n";
+      $length -= (length($$bufref) + $self->{'trimmed'});
+      $$bufref = '';
+      $self->read();		#or die "unexpected end of file";
     } else {
+      substr($$bufref, 0, $length) = '';
       $length = 0;
-      substr($buffer, 0, $length) = '';
     }
   }
 }
 
 # what is the most efficient reader?
-# You can also use: if (chomp(${$_[0]->{'buffer'}} .= <$FH>)) {
 sub read {			# by line
-  my $FH = $_[0]->{'filehandle'};
-  if ((${$_[0]->{'buffer'}} .= <$FH>) =~ s!$EOR$!!o) {
+  my $self = $_[0];
+  my $FH = $self->{'filehandle'};
+  if (${$self->{'buffer'}} .= <$FH>) {
+    $self->{strimmed} = (${$self->{'buffer'}} =~ s!$EOR$!!o);
     1;
   } else {
-    $_[0]->{eof} = 1;
+    $self->{eof} = 1;
     0;
   }
 }
 1;
 __END__
-

@@ -1,6 +1,6 @@
-# Sonovision-Itep, Verdret 1998
+# Sonovision-Itep, Philippe Verdret 1998
 # 
-# Stack machine - should be ideally application independant!
+# Stack machine - must be application independant!
 # 
 # define some interesting events for your application
 
@@ -14,9 +14,9 @@ use Exporter;
 @RTF::Control::ISA = qw(Exporter RTF::Parser);
 
 				# here is what you can use in your application
-
 use vars qw(%char %symbol %info %do_on_event %par 
 	    $style $newstyle $event $text);
+				# symbol to export in the application layer
 @RTF::Control::EXPORT = qw(output 
 			   %char %symbol %info %do_on_event %par 
 			   $style $newstyle $event $text);
@@ -82,26 +82,23 @@ sub pop_output {  pop @output_stack; }
 				# Trace management
 my $max_depth = 0;
 use vars qw(%not_processed);
-use constant TRACE => 1;	# General trace
-$| = 1;
+use constant TRACE => 0;	# General trace
 use constant STACK_TRACE => 0; # 
+use constant DEBUG => 0;
 
-# is it possible to find the associated control instruction?
-#caller() returns:
-#RTF::Parser RTF/Parser.pm 150 RTF::Control::__ANON__ 1 
+$| = 1;
 sub trace {
-  my(@caller) = (caller(1));
-  my $sub = (@caller)[3];
-  $sub =~ s/.*:://;
-  $sub = sprintf "%-12s", $sub;
-  #print STDERR ('_' x $#control . "[$sub] @_\n");
-  #output ('_' x $#control . "@_\n");
+  #my(@caller) = (caller(1));
+  #my $sub = (@caller)[3];
+  #$sub =~ s/.*:://;
+  #$sub = sprintf "%-12s", $sub;
   print STDERR ('_' x $#control . "@_\n");
 }
 $SIG{__DIE__} = sub {
   require Carp;
   Carp::confess;
-};
+} if DEBUG;
+
 ###########################################################################
 				# default mapping for symbols
 %symbol = qw(
@@ -160,7 +157,7 @@ sub do_on_toggle {
 use constant DISCARD_CONTENT => 0;
 sub discard_content {		
   my($control, $arg, $cevent) = ($_[CONTROL], $_[ARG], $_[EVENT]);
-  trace "($_[CONTROL], $_[ARG], $_[EVENT])" if DISCARD_CONTENT;
+  #trace "($_[CONTROL], $_[ARG], $_[EVENT])" if DISCARD_CONTENT;
   if ($_[ARG] eq "0") { 
     pop_output();
     $control[-1]->{"$_[CONTROL]1"} = 1;
@@ -274,7 +271,7 @@ use vars qw(%do_on_control);
    'min' => sub { output "$_[ARG]" },   
 				# Font processing
    'fonttbl' => sub {
-     #trace "fonttbl $#control $_[CONTROL] $_[ARG] $_[EVENT]";
+     #trace "$#control $_[CONTROL] $_[ARG] $_[EVENT]";
      if ($_[EVENT] eq 'start') { 
        $IN_FONTTBL = 1 ;
        push_output('nul');
@@ -675,13 +672,14 @@ END {
     trace "Stack not empty: ", @control+0;
   }
   if ($LOG_FILE) {
-    open LOG, "> $LOG_FILE"
-      or die qq^$::basename: unable to output data to "$LOG_FILE"$::EOM^;
+    select STDERR;
+    unless (open LOG, "> $LOG_FILE") {
+      print qq^$::basename: unable to output data to "$LOG_FILE"$::EOM^;
+      return 0;
+    }
     print "Maximum stack depth: ", $max_depth + 1, "\n";
-    open LOG, "$LOG_CMD >> $LOG_FILE"
-      or die qq^$::basename: unable to output data to "$LOG_CMD >> $LOG_FILE"$::EOM^;
-    select LOG;
 
+    select LOG;
     my($key, $value) = ('','');
     while (($key, $value) = each %not_processed) {
       printf LOG "%-20s\t%3d\n", "$key", "$value";

@@ -1,12 +1,10 @@
 use strict;
 package RTF::Config;
-
-use vars qw(@EXPORT @ISA $OS $LOG_FILE $LOG_CMD);
 use Exporter;
+use vars qw(@EXPORT @ISA $OS $LOG_FILE $LOG_CMD);
 @ISA = qw(Exporter);
-@EXPORT = qw($LOG_CMD $LOG_FILE $OS PARSER_TRACE);
+@EXPORT = qw($LOG_CMD $LOG_FILE $OS);
 
-use constant PARSER_TRACE => 0;
 
 # Some stuff borrowed to CGI.pm
 unless ($OS) {
@@ -26,7 +24,6 @@ if ($OS=~/Win/i) {
 } else {
   $ENV{'PATH'} = '/bin:/usr/bin';
   $OS = 'UNIX';
-  #$LOG_FILE = "not_processed";
   $LOG_CMD = "| sort -d "; #$LOG_FILE";
 }
 

@@ -1,13 +1,13 @@
 # Sonovision-Itep, Verdret 1998
 use strict;
 package RTF::HTML::Output;
+
 use RTF::Control;
 @RTF::HTML::Output::ISA = qw(RTF::Control);
 
-# Application interface could notably evolved
+# Application interface, could notably evolved
 # todo:
-# - define a table oriented output specification
-
+# - table oriented output specification could be nice
 
 # The following data structures are imported:
 # $style: name of the current style or pseudo-style
@@ -23,8 +23,8 @@ use RTF::Control;
 # row 
 # cell 
 
+# Should be documented ;-)
 # $text: text associated to the current style
-
 # %char: 
 # %symbol: 
 # %do_on_event: 
@@ -36,7 +36,7 @@ use RTF::Control;
 				# define character mappings
 				# some values could be found in HTML::Entities.pm
 				# or redefine the char() method
-				# some examples: 
+				# Examples: 
 %char = qw(
 	   periodcentered *
 	   copyright      ©
@@ -71,6 +71,7 @@ my $postPar;
 
 # perhaps use only the output() routine
 my $TITLE_FLAG = 0;
+my $LANG = 'fr';
 %do_on_event = 
   (
    'document' => sub {		# Special action
@@ -85,10 +86,17 @@ my $TITLE_FLAG = 0;
 	 output "</$style>$N";
        }
        $style = 'p';
-       output "<$style><b>Auteur</b> : $author</$style>\n" if $author;
-       output "<$style><b>Date de création</b> : $creatim</$style>\n" if $creatim;
-       output "<$style><b>Date de modification</b> : $revtim</$style>\n" if $revtim;
-       output "</body>\n</html>\n"
+
+       if ($LANG eq 'fr') {
+	 output "<$style><b>Auteur</b> : $author</$style>\n" if $author;
+	 output "<$style><b>Date de création</b> : $creatim</$style>\n" if $creatim;
+	 output "<$style><b>Date de modification</b> : $revtim</$style>\n" if $revtim;
+       } else {			# Default
+	 output "<$style><b>Author</b> : $author</$style>\n" if $author;
+	 output "<$style><b>Creation date</b>: $creatim</$style>\n" if $creatim;
+	 output "<$style><b>Modification date</b>: $revtim</$style>\n" if $revtim;
+       }
+       output "</body>\n</html>\n";
      }
    },
 				# Table processing
