@@ -1,0 +1,29 @@
+		RTF Processor V 0.7 (alpha)
+
+The RTF package set is a minimal RTF processor.
+This set is provided with an RTF to HTML converter.
+This converter is just an example not a full-fleged application
+
+You can try this converter on replicas.rtf
+(<http://www.research.microsoft.com/~gray/replicas.rtf>) or on the RTF
+specification (see "ressources"). For example:
+
+	% rtf2html.pl corpus/replicas.rtf > replicas.htm
+
+Philippe Verdret
+pverdret@sonovision-itep.fr
+
+____
+TODO
+
+- correct bugs!
+- write documentation 
+
+__________
+Ressources
+
+Specification for RTF and filters are available at:
+- <ftp://ftp.primate.wisc.edu/pub/RTF>
+
+General information on converters:
+- <http://www.kfa-juelich.de/isr/1/texconv.html>
